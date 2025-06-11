@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native'
-import { supabase } from '../lib/supabase'
 import { Session } from '@supabase/supabase-js'
+import { useEffect, useState } from 'react'
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { supabase } from '../lib/supabase'
+import { router } from 'expo-router'
 
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null)
@@ -30,24 +31,10 @@ export default function Dashboard() {
   }
 
   const handleGetVerified = () => {
-    // Simulate verification process
-    Alert.alert(
-      'Verification Process',
-      'This will redirect you to the verification process. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Continue', 
-          onPress: () => {
-            setIsVerified(true)
-            setShowQR(true)
-            Alert.alert('Success', 'Verification completed! Your voter ID QR code is now available.')
-          }
-        }
-      ]
-    )
+    // Navigate to verification page
+    router.push('/verification')
   }
-
+  
   type MenuCardProps = {
     title: string
     subtitle: string
