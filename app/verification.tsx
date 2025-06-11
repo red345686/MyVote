@@ -65,7 +65,7 @@ export default function Verification() {
     const base64Image = await convertImageToBase64(imageUri);
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,7 +73,24 @@ export default function Verification() {
           contents: [{
             parts: [
               {
-                text: `Analyze this Aadhar card image and extract the following info as JSON...` // full prompt
+                text: `Analyze this Aadhar card image and extract the following information. Return the data in this exact JSON format:
+{
+  "name": "extracted full name",
+  "aadhar_number": "12-digit aadhar number with or without spaces/dashes",
+  "date_of_birth": "DD/MM/YYYY or DD-MM-YYYY format",
+  "gender": "Male or Female",
+  "address": "complete address as written on card",
+  "father_name": "father's name if visible",
+  "phone": "phone number if visible, even if not explicitly labeled; look for 10-digit numbers that could be a phone number"
+}
+
+Important instructions:
+- Extract text exactly as it appears on the card
+- If any field is not clearly visible, use "Not visible" as the value
+- For the phone number, look for any 10-digit number that could be a phone number, even if not labeled as such
+- Return only the JSON object, no additional text
+- Ensure all field names match exactly as specified above
+- Pay special attention to the Aadhar number and phone number formats`
               },
               {
                 inline_data: {
@@ -99,9 +116,26 @@ export default function Verification() {
 
   const saveDataToFile = async (data: any) => {
     const fileName = `aadhar_data_${Date.now()}.json`;
-    const fileUri = FileSystem.documentDirectory + fileName;
-    await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
-    return fileUri;
+    const jsonString = JSON.stringify(data, null, 2);
+
+    if (Platform.OS === 'web') {
+      // Web: trigger download
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return fileName;
+    } else {
+      // Native: save to file system
+      const fileUri = FileSystem.documentDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, jsonString);
+      return fileUri;
+    }
   };
 
   const handleSubmit = async () => {
@@ -129,7 +163,13 @@ export default function Verification() {
         },
         {
           text: 'Continue',
-          onPress: () => router.replace('/dashboard'),
+          onPress: () => router.replace({
+            pathname: '/dashboard',
+            params: {
+              extractedPhone: String(data.phone ?? ''),
+              extractedAadhar: String(data.aadhar_number ?? '')
+            }
+          }),
         },
       ]);
     } catch (error) {

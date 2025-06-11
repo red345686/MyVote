@@ -2,19 +2,35 @@ import { Session } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { supabase } from '../lib/supabase'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  const params = useLocalSearchParams();
+  const extractedPhone = Array.isArray(params.extractedPhone) ? params.extractedPhone[0] : params.extractedPhone;
+  const extractedAadhar = Array.isArray(params.extractedAadhar) ? params.extractedAadhar[0] : params.extractedAadhar;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
   }, [])
+
+  useEffect(() => {
+    if (extractedPhone && session?.user?.phone) {
+      // Remove country code for comparison if needed
+      const userPhone = session.user.phone.replace(/^\+91/, '').replace(/^\+/, '');
+      if (userPhone.endsWith(extractedPhone)) {
+        setIsVerified(true);
+      } else {
+        Alert.alert('Aadhar number not matched', 'The phone number on your Aadhar does not match your login.');
+        setIsVerified(false);
+      }
+    }
+  }, [extractedPhone, session]);
 
   const signOut = async () => {
     setLoading(true)

@@ -25,3 +25,5 @@ export default function RootLayout() {
     </Stack>
   )
 }
+
+// All screens are included in the stack. Session is managed globally for phone comparison in dashboard.

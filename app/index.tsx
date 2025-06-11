@@ -46,3 +46,5 @@ export default function Index() {
 
   return null // This screen just handles routing
 }
+
+// Routing is handled based on Supabase session. Phone number will be available in session for dashboard comparison.
