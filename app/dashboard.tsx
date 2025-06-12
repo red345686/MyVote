@@ -1,17 +1,77 @@
 import { Session } from '@supabase/supabase-js'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { LanguageSelector } from '../components/LanguageSelector'
+import { useTranslation } from '../hooks/useTranslation'
 import { supabase } from '../lib/supabase'
-import { router, useLocalSearchParams } from 'expo-router'
 
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  const [isRegisteredVoter, setIsRegisteredVoter] = useState(false)
+  const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>({})
+
+  const { t, tSync, currentLanguage } = useTranslation()
   const params = useLocalSearchParams();
   const extractedPhone = Array.isArray(params.extractedPhone) ? params.extractedPhone[0] : params.extractedPhone;
   const extractedAadhar = Array.isArray(params.extractedAadhar) ? params.extractedAadhar[0] : params.extractedAadhar;
+  const voterRegistered = Array.isArray(params.voterRegistered) ? params.voterRegistered[0] : params.voterRegistered;
+  const alreadyRegistered = Array.isArray(params.alreadyRegistered) ? params.alreadyRegistered[0] : params.alreadyRegistered;
+
+  // Translation effect
+  useEffect(() => {
+    const translateTexts = async () => {
+      if (currentLanguage === 'en') {
+        setTranslatedTexts({});
+        return;
+      }
+
+      const textsToTranslate = {
+        welcome: 'Welcome to MyVote',
+        signOut: 'Sign Out',
+        signingOut: 'Signing out...',
+        registeredVoter: 'Registered Voter',
+        verifiedUser: 'Verified User',
+        verificationRequired: 'Verification Required',
+        registeredMessage: 'You are registered and ready to vote',
+        verifiedMessage: 'Identity verified - Register to vote',
+        verificationNeeded: 'Complete verification to proceed',
+        getVerified: 'Get Verified',
+        registerToVote: 'Register to Vote',
+        yourVoterId: 'Your Voter ID',
+        qrCode: 'QR Code',
+        tapToView: 'Tap to view full QR code',
+        upcomingElections: 'Upcoming Elections',
+        viewPolls: 'View upcoming polls',
+        results: 'Results',
+        electionResults: 'Election results',
+        faqs: 'FAQs',
+        frequentlyAsked: 'Frequently asked questions',
+        contactUs: 'Contact Us',
+        getHelp: 'Get help & support',
+        accountInfo: 'Account Information',
+        userId: 'User ID:',
+        lastSignIn: 'Last Sign In:',
+        comingSoon: 'feature coming soon!',
+        aadharNotMatched: 'Aadhar number not matched',
+        phoneNotMatch: 'The phone number on your Aadhar does not match your login.',
+        errorTitle: 'Error',
+        failedSignOut: 'Failed to sign out',
+        info: 'Info'
+      };
+
+      const translated: Record<string, string> = {};
+      for (const [key, text] of Object.entries(textsToTranslate)) {
+        translated[key] = await t(key, text);
+      }
+      setTranslatedTexts(translated);
+    };
+
+    translateTexts();
+  }, [currentLanguage]); // Remove 't' from dependencies to prevent infinite loop
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -25,22 +85,57 @@ export default function Dashboard() {
       const userPhone = session.user.phone.replace(/^\+91/, '').replace(/^\+/, '');
       if (userPhone.endsWith(extractedPhone)) {
         setIsVerified(true);
+        // If user came from verification with successful registration or already registered
+        if (voterRegistered === 'true' || alreadyRegistered === 'true') {
+          setIsRegisteredVoter(true);
+          setShowQR(true);
+        }
       } else {
-        Alert.alert('Aadhar number not matched', 'The phone number on your Aadhar does not match your login.');
+        // Use a ref or state to prevent infinite re-renders
+        if (Object.keys(translatedTexts).length > 0) {
+          Alert.alert(
+            translatedTexts.aadharNotMatched || 'Aadhar number not matched',
+            translatedTexts.phoneNotMatch || 'The phone number on your Aadhar does not match your login.'
+          );
+        }
         setIsVerified(false);
       }
     }
-  }, [extractedPhone, session]);
+  }, [extractedPhone, session, voterRegistered, alreadyRegistered]); // Remove translatedTexts from dependencies
+
+  // Add function to check registration status on load
+  useEffect(() => {
+    const checkExistingRegistration = async () => {
+      if (session?.user?.user_metadata?.aadhar_number) {
+        try {
+          const response = await fetch(
+            `https://notional-yeti-461501-r9.uc.r.appspot.com/api/voters/status/aadhar/${session.user.user_metadata.aadhar_number}`
+          );
+          if (response.ok) {
+            setIsRegisteredVoter(true);
+            setIsVerified(true);
+            setShowQR(true);
+          }
+        } catch (error) {
+          console.log('No existing registration found');
+        }
+      }
+    };
+
+    if (session) {
+      checkExistingRegistration();
+    }
+  }, [session]);
 
   const signOut = async () => {
     setLoading(true)
     try {
       const { error } = await supabase.auth.signOut()
       if (error) {
-        Alert.alert('Error', error.message)
+        Alert.alert(translatedTexts.errorTitle || 'Error', error.message)
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to sign out')
+      Alert.alert(translatedTexts.errorTitle || 'Error', translatedTexts.failedSignOut || 'Failed to sign out')
     } finally {
       setLoading(false)
     }
@@ -50,7 +145,7 @@ export default function Dashboard() {
     // Navigate to verification page
     router.push('/verification')
   }
-  
+
   type MenuCardProps = {
     title: string
     subtitle: string
@@ -72,17 +167,20 @@ export default function Dashboard() {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome to MyVote</Text>
+        <Text style={styles.welcomeText}>{translatedTexts.welcome || 'Welcome to MyVote'}</Text>
         <Text style={styles.phoneText}>{session?.user?.phone || 'User'}</Text>
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={signOut}
-          disabled={loading}
-        >
-          <Text style={styles.signOutText}>
-            {loading ? 'Signing out...' : 'Sign Out'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <LanguageSelector />
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={signOut}
+            disabled={loading}
+          >
+            <Text style={styles.signOutText}>
+              {loading ? (translatedTexts.signingOut || 'Signing out...') : (translatedTexts.signOut || 'Sign Out')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Verification Status Section */}
@@ -92,36 +190,52 @@ export default function Dashboard() {
             <Text style={styles.statusIcon}>{isVerified ? '✓' : '⚠️'}</Text>
             <View>
               <Text style={styles.statusTitle}>
-                {isVerified ? 'Verified Voter' : 'Verification Required'}
+                {isVerified
+                  ? (isRegisteredVoter ? (translatedTexts.registeredVoter || 'Registered Voter') : (translatedTexts.verifiedUser || 'Verified User'))
+                  : (translatedTexts.verificationRequired || 'Verification Required')
+                }
               </Text>
               <Text style={styles.statusSubtitle}>
-                {isVerified 
-                  ? 'Your identity has been verified' 
-                  : 'Complete verification to vote'
+                {isVerified
+                  ? (isRegisteredVoter
+                    ? (translatedTexts.registeredMessage || 'You are registered and ready to vote')
+                    : (translatedTexts.verifiedMessage || 'Identity verified - Register to vote')
+                  )
+                  : (translatedTexts.verificationNeeded || 'Complete verification to proceed')
                 }
               </Text>
             </View>
           </View>
-          
+
           {!isVerified && (
             <TouchableOpacity style={styles.verifyButton} onPress={handleGetVerified}>
-              <Text style={styles.verifyButtonText}>Get Verified</Text>
+              <Text style={styles.verifyButtonText}>{translatedTexts.getVerified || 'Get Verified'}</Text>
+            </TouchableOpacity>
+          )}
+
+          {isVerified && !isRegisteredVoter && (
+            <TouchableOpacity style={styles.verifyButton} onPress={handleGetVerified}>
+              <Text style={styles.verifyButtonText}>{translatedTexts.registerToVote || 'Register to Vote'}</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* QR Code Section - Only show when verified */}
-      {showQR && isVerified && (
+      {/* QR Code Section - Only show when verified and registered */}
+      {showQR && isVerified && isRegisteredVoter && (
         <View style={styles.qrSection}>
-          <Text style={styles.qrTitle}>Your Voter ID</Text>
-          <View style={styles.qrContainer}>
+          <Text style={styles.qrTitle}>{translatedTexts.yourVoterId || 'Your Voter ID'}</Text>
+          <TouchableOpacity
+            style={styles.qrContainer}
+            onPress={() => router.push('/qrcode')}
+            activeOpacity={0.7}
+          >
             <View style={styles.qrPlaceholder}>
               <Text style={styles.qrIcon}>📱</Text>
-              <Text style={styles.qrText}>QR Code</Text>
-              <Text style={styles.qrSubtext}>Show this at polling station</Text>
+              <Text style={styles.qrText}>{translatedTexts.qrCode || 'QR Code'}</Text>
+              <Text style={styles.qrSubtext}>{translatedTexts.tapToView || 'Tap to view full QR code'}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -129,47 +243,47 @@ export default function Dashboard() {
       <View style={styles.menuGrid}>
         <View style={styles.menuRow}>
           <MenuCard
-            title="Upcoming Elections"
-            subtitle="View upcoming polls"
+            title={translatedTexts.upcomingElections || "Upcoming Elections"}
+            subtitle={translatedTexts.viewPolls || "View upcoming polls"}
             icon="🗳️"
-            onPress={() => Alert.alert('Info', 'Upcoming Elections feature coming soon!')}
+            onPress={() => router.push('/upcomingelections')}
           />
           <MenuCard
-            title="Results"
-            subtitle="Election results"
+            title={translatedTexts.results || "Results"}
+            subtitle={translatedTexts.electionResults || "Election results"}
             icon="📊"
-            onPress={() => Alert.alert('Info', 'Results feature coming soon!')}
+            onPress={() => router.push('/results')}
           />
         </View>
-        
+
         <View style={styles.menuRow}>
           <MenuCard
-            title="FAQs"
-            subtitle="Frequently asked questions"
+            title={translatedTexts.faqs || "FAQs"}
+            subtitle={translatedTexts.frequentlyAsked || "Frequently asked questions"}
             icon="❓"
-            onPress={() => Alert.alert('Info', 'FAQs feature coming soon!')}
+            onPress={() => router.push('/faq')}
           />
           <MenuCard
-            title="Contact Us"
-            subtitle="Get help & support"
+            title={translatedTexts.contactUs || "Contact Us"}
+            subtitle={translatedTexts.getHelp || "Get help & support"}
             icon="📞"
-            onPress={() => Alert.alert('Info', 'Contact feature coming soon!')}
+            onPress={() => Alert.alert(translatedTexts.info || 'Info', `${translatedTexts.contactUs || 'Contact'} ${translatedTexts.comingSoon || 'feature coming soon!'}`)}
           />
         </View>
       </View>
 
       {/* User Info Section */}
       <View style={styles.userInfoSection}>
-        <Text style={styles.userInfoTitle}>Account Information</Text>
+        <Text style={styles.userInfoTitle}>{translatedTexts.accountInfo || 'Account Information'}</Text>
         <View style={styles.userInfoCard}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>User ID:</Text>
+            <Text style={styles.infoLabel}>{translatedTexts.userId || 'User ID:'}</Text>
             <Text style={styles.infoValue}>{session?.user?.id?.slice(0, 8) || 'N/A'}...</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Last Sign In:</Text>
+            <Text style={styles.infoLabel}>{translatedTexts.lastSignIn || 'Last Sign In:'}</Text>
             <Text style={styles.infoValue}>
-              {session?.user?.last_sign_in_at 
+              {session?.user?.last_sign_in_at
                 ? new Date(session.user.last_sign_in_at).toLocaleDateString()
                 : 'N/A'
               }
@@ -205,12 +319,16 @@ const styles = StyleSheet.create({
     color: '#bfdbfe',
     marginBottom: 20,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   signOutButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
-    alignSelf: 'flex-end',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },

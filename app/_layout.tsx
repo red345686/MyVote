@@ -1,6 +1,7 @@
 import { Session } from '@supabase/supabase-js'
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { LanguageProvider } from '../contexts/LanguageContext'
 import { supabase } from '../lib/supabase'
 
 export default function RootLayout() {
@@ -17,12 +18,18 @@ export default function RootLayout() {
   }, [])
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="auth" options={{ headerShown: false }} />
-      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
-      <Stack.Screen name="verification" options={{ headerShown: false }} />
-    </Stack>
+    <LanguageProvider>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="auth" options={{ headerShown: false }} />
+        <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+        <Stack.Screen name="verification" options={{ headerShown: false }} />
+        <Stack.Screen name="qrcode" options={{ headerShown: false }} />
+        <Stack.Screen name="upcomingelections" options={{ headerShown: false }} />
+        <Stack.Screen name="faq" options={{ headerShown: false }} />
+        <Stack.Screen name="results" options={{ headerShown: false }} />
+      </Stack>
+    </LanguageProvider>
   )
 }
 
